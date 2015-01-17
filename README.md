@@ -5,6 +5,8 @@ Save server and app configuration locally to take the pain out of `dokku` comman
 
 The working directory `push` feature should be used with development dokku servers (i.e. running locally in vagrant) rather than out in the real world.
 
+[See it in action with showterm.io!](http://showterm.io/fa9984f1813bebf937c24#fast)
+
 ## Installation
 
 Requires `git`, `ssh`, `bash`, and a server running [dokku](http://progrium.viewdocs.io/dokku/index).
@@ -88,8 +90,6 @@ sample
 
 > # Over
 ```
-
-[See it in action with showterm.io!](http://showterm.io/fa9984f1813bebf937c24#fast)
 
 Please Enjoy responsibly.
 
