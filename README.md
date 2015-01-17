@@ -1,5 +1,5 @@
 # HAM
-Ham is the amateur radio operator for your dokku apps.
+Ham is the amateur radio operator for your dokku apps.  It's both the missing Dokku remote client and a wrapper around common commands to simplify iterative development of dokku applications.
 
 Save server and app configuration locally to take the pain out of `dokku` commands and (optionally) push work-in-progress code without needing to `git commit`.
 
@@ -13,7 +13,7 @@ Requires `git`, `ssh`, `bash`, and a server running [dokku](http://progrium.view
 > # Download the script
 > git clone https://github.com/amcgee/ham
 > # Add it to your path, i.e.
-> echo "PATH=`pwd`/ham/bin:\$PATH" >> ~/.bashrc
+> echo "PATH=`pwd`/ham/bin:\$PATH" >> ~/.bash_profile
 > # Profit
 ```
 
@@ -62,11 +62,12 @@ Here's a simple example (after setting up [dokku](http://progrium.viewdocs.io/do
 ...
 
 > # Test it out!
+> # (those are backticks, not single quotes)
 > curl `ham url`
 Hello world!
 
 > # Modify something locally but don't commit it in git
-> sed -i 's/world/dokku/g' index.js
+> sed -i '' 's/World/Dokku/g' index.js
 
 > # Push the app again - the local changes will be pushed
 > ham push
@@ -88,7 +89,7 @@ sample
 > # Over
 ```
 
-[See it in action with showterm.io!](http://showterm.io/7b5f8d42ba021511e627e#fast)
+[See it in action with showterm.io!](http://showterm.io/fa9984f1813bebf937c24#fast)
 
 Please Enjoy responsibly.
 
