@@ -1,106 +1,157 @@
 #/usr/bin/env bash
 set -e
 
-
 die () {
-	>&2 echo $1
-	exit 1
+  >&2 echo $1
+  exit 1
 }
 
 Usage () {
-	cat<<EOF
-ham <command>
+  cat<<EOF
+Ham is the amateur radio operator for your dokku apps.
+USAGE:
+  ham <command>
 
 <command>:
-  init <url> <app>          Create the specified application and save it to a local .hamrc file
+  init <url> <app>          Create the specified application and save it to a
+                              local .hamrc file
   check                     Check that the connected dokku application exists.
-  connect <url> <app>       Connect to the specified dokku application (it must already exist) and save it to a local .hamrc file
-  send                      Push the current working directory to the connected dokku application
-  dokku <args...>           Connect to the remote dokku instance and run the specified command verbatim.
-  <cmd> <args...>           Connect to the remote dokku instance and run the specified command, with app as the first parameter
-  tunnel                    Set up an 'ngrok' tunnel to the current directory.
+  push                      Push the current working directory to the connected
+                              dokku application (doesn't affect local git repo)
+  open                      Open the url of this app in a web browser.
 
+  dokku <args...>           Connect to the remote dokku instance and run the
+                              specified command verbatim.
+  <cmd> <args...>           Connect to the remote dokku instance and run the
+                              specified command, with $HAMAPP as the first arg.
+
+Configuration is loaded in the following order:
+  1. Command-line arguments (for 'init' and 'connect' only)
+  2. Environment variables 'HAMURL' and 'HAMAPP'
+  3. The local .hamrc file
+  4. The global ~/.hamrc file
+
+See https://github.com/amcgee/ham for more.  Please Enjoy responsibly.
 EOF
 }
 
+Log () {
+  if [ -n "$HAMVERBOSE" ]; then
+    >&2 echo $@
+  fi
+}
+
 SaveConfig () {
-	cat<<EOF > .hamrc
+  Log "Saving config..."
+  cat<<EOF > .hamrc
 HAMURL=$HAMURL
 HAMAPP=$HAMAPP
 EOF
 }
 LoadConfig () {
-	ENV_HAMURL=$HAMURL
-	ENV_HAMAPP=$HAMAPP
-	source ~/.hamrc > /dev/null || true
-	if [ -a '.hamrc' ]; then
-		source .hamrc
-	fi
-	if [ -n "$2" ]; then
-		HAMURL="$1"
-		HAMAPP="$2"
-	elif [ -n "$1" ]; then
-		HAMAPP="$1"
-	fi
+  ENV_HAMURL=$HAMURL
+  ENV_HAMAPP=$HAMAPP
+  source ~/.hamrc > /dev/null || true
+  if [ -a '.hamrc' ]; then
+    source .hamrc
+  fi
 
-	if [ -z "$HAMURL" ]; then
-		>&2 echo "No url specified."
-		exit 1
-	fi
-	if [ -z "$HAMAPP" ]; then
-		>&2 echo "No application name specified."
-		exit 1
-	fi
+  if [ -n "$ENV_HAMURL" ]; then
+    HAMURL=$ENV_HAMURL
+  fi
+  if [ -n "$ENV_HAMAPP" ]; then
+    HAMAPP=$ENV_HAMAPP
+  fi
+
+  if [ -n "$2" ]; then
+    HAMURL="$1"
+    HAMAPP="$2"
+  elif [ -n "$1" ]; then
+    HAMAPP="$1"
+  fi
+
+  dokkucmd="ssh $HAMURL"
+  Log "HAMURL=$HAMURL"
+  Log "HAMAPP=$HAMAPP"
+  Log "DOKKUCMD=$dokkucmd"
+
+  if [ -z "$HAMURL" ]; then
+    die "No url specified."
+  fi
+}
+RequireApp () {
+  if [ -z "$HAMAPP" ]; then
+    die "No application name specified."
+  fi
 }
 
 CheckApp () {
-	LoadConfig $2 $3
+  HAMVERBOSE=
+  LoadConfig $2 $3
+  RequireApp
   COUNT=`ssh $HAMURL apps | grep $HAMAPP | wc -l`
-  if [ $COUNT -ne 1 ]; then
-  	die "ERROR: $HAMURL:$HAMAPP does not exist."
+  if [ $COUNT -eq 1 ]; then
+    echo "OK"
   fi
-  echo "$HAMURL:$HAMAPP exists."
+  exit 0
+}
+
+dokku () {
+  Log "Running 'ssh $HAMURL ${@}'"
+  $dokkucmd $@
 }
 
 if [ -z "$1" ]; then
-	Usage
-	exit 1
+  Usage
+  exit 1
 fi
 
 case "$1" in
-	help)
-		Usage
-		exit 0
-		;;
-	init)
+  help)
+    Usage
+    exit 0
+    ;;
+  init)
     LoadConfig $2 $3
-    ssh $HAMURL apps:create $HAMAPP || die "Use 'ham connect $2 $3' instead."
+    RequireApp
+    if [ -z "`CheckApp`" ]; then
+      dokku apps:create $HAMAPP
+    fi
     SaveConfig
-    echo "$HAMURL:$HAMAPP "
+    echo "Connected to $HAMURL:$HAMAPP"
     ;;
   check)
-		CheckApp
+    LoadConfig
+    RequireApp
+    if [ -n "`CheckApp`" ]; then
+      echo "Application $HAMURL:$HAMAPP found!"  
+    else
+      die "ERROR: Application $HAMURL:$HAMAPP not found."
+    fi
     ;;
-  connect)
-		LoadConfig $2 $3
-		CheckApp > /dev/null
-		SaveConfig
-		echo "Connected to $HAMURL:$HAMAPP"
-		;;
-	send)
-		LoadConfig $2 $3
-		echo "Sending to $HAMURL:$HAMAPP"
-		STASH=`git stash create`
-		git archive $STASH | ssh $HAMURL receive $HAMAPP
-		;;
-	dokku)
-		LoadConfig
-		HAMCMD=$2
-		exec ssh $HAMURL $HAMCMD $HAMAPP ${@:3}
-		;;
-	*)
-		LoadConfig
-		HAMCMD=$1
-		exec ssh $HAMURL $HAMCMD $HAMAPP ${@:2}
+  push)
+    LoadConfig
+    RequireApp
+    echo "Pushing working directory to $HAMURL:$HAMAPP..."
+    REF=`git stash create`
+    if [ -z "$REF" ]; then
+      REF="HEAD"
+    fi
+    Log "REF=$REF"
+    git archive $REF | ssh $HAMURL receive $HAMAPP
+    ;;
+  open)
+    LoadConfig
+    RequireApp
+    open `dokku url $HAMAPP`
+    ;;
+  dokku)
+    LoadConfig
+    exec $dokkucmd $2 ${@:3}
+    ;;
+  *)
+    LoadConfig
+    RequireApp
+    dokku $1 $HAMAPP ${@:2}
 
 esac
